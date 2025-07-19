@@ -167,20 +167,6 @@ resource "aws_iam_instance_profile" "ec2_instance_profile" {
   role = aws_iam_role.ec2_s3_role.name
 }
 
-
-resource "null_resource" "build_and_detect" {
-  # provisioner "local-exec" {
-  #   command = "mvn clean package"
-  # }
-
-  provisioner "local-exec" {
-    command = <<EOT
-    ../target/
-    ls
-    EOT
-  }
-}
-
 resource "aws_instance" "bastion_host" {
   ami                    = data.aws_ami.amzn_linux_2023_latest.id
   instance_type          = var.instance_type_bastion
@@ -190,28 +176,20 @@ resource "aws_instance" "bastion_host" {
    iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
   tags                   = merge(local.common_tags, { Name = "${local.name}-baston-host" })
 
-      connection {
-      type = "ssh"
-      user = "ec2-user"
-      private_key = file("${path.module}/private_key/vprofile-dev.pem")
-      host = self.public_ip
-    }
 
-  provisioner "file" {
-    source = "${path.module}/private_key/vprofile-dev.pem"
-    destination = "/home/ec2-user/vprofile-dev.pem"
-  }
 
-    provisioner "file" {
-    source = "../target/vprofile-v2.war"
-    destination = "/home/ec2-user/vprofile-v2.war"
-    connection {
-      type = "ssh"
-      user = "ec2-user"
-      private_key = file("${path.module}/private_key/vprofile-dev.pem")
-      host = self.public_ip
-    }
-  }
+  
+
+  #   provisioner "file" {
+  #   source = "../target/vprofile-v2.war"
+  #   destination = "/home/ec2-user/vprofile-v2.war"
+  #   connection {
+  #     type = "ssh"
+  #     user = "ec2-user"
+  #     private_key = file("${path.module}/private_key/vprofile-dev.pem")
+  #     host = self.public_ip
+  #   }
+  # }
 }
 
 
@@ -226,4 +204,67 @@ resource "aws_instance" "vprofile_app" {
   tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-vprofile-app" })
 }
 
+resource "null_resource" "run_on_bastion_hots_ec2" {
+  
+    provisioner "file" {
+       connection {
+      type = "ssh"
+      user = "ec2-user"
+      private_key = file("${path.module}/private_key/vprofile-dev.pem")
+      host = aws_instance.bastion_host.public_ip
+    }
+    source = "${path.module}/private_key/vprofile-dev.pem"
+    destination = "tmp/vprofile-dev.pem"   
+  }
+provisioner "remote-exec" {
+   connection {
+      type = "ssh"
+      user = "ec2-user"
+      private_key = file("${path.module}/private_key/vprofile-dev.pem")
+      host = aws_instance.bastion_host.public_ip
+    }
+    inline = [
+      "chmod 400 /tmp/vprofile-dev.pem",
+      
+    ]
+}
+
+  triggers = {
+    always_run = timestamp()  # change this to force rerun
+  }
+  depends_on = [ aws_instance.bastion_host ]
+}
+
+resource "null_resource" "via_bastion_exec" {
+  provisioner "remote-exec" {
+    inline = [
+      "sudo systemctl stop tomcat10",
+      "cd /var/lib/tomcat10/webapps/",
+      "sudo rm -rf ROOT",
+      "sudo aws s3 cp s3://${aws_s3_bucket.bucket_artifact_storage.bucket}/artifact/vprofile-v2.war /tmp/vprofile-v2.war",
+      "sudo cp /tmp/vprofile-v2.war /var/lib/tomcat10/webapps/ROOT.war",
+      "sudo systemctl start tomcat10"
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file("${path.module}/private_key/vprofile-dev.pem")
+      host        = aws_instance.vprofile_app.private_ip
+      bastion_host        = aws_instance.bastion_host.public_ip
+      bastion_user        = "ec2-user"
+      bastion_private_key = file("${path.module}/private_key/vprofile-dev.pem")
+    }
+  }
+   triggers = {
+    always_run = timestamp()  # change this to force rerun
+  }
+  depends_on = [ aws_instance.bastion_host,aws_instance.vprofile_app ]
+}
+
+ resource "aws_s3_object" "upload_file" {
+  bucket = aws_s3_bucket.bucket_artifact_storage.bucket
+  key    = "artifact/vprofile-v2.war"
+  source = "../target/vprofile-v2.war"  # Path to local file
+}
 
