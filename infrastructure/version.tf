@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.4"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"  # or latest
+    }
   }
   #   backend "s3" {
   #   bucket                = "vprofile_terraform_state_backend"

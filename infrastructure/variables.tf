@@ -79,6 +79,10 @@ variable "internal_record_name_rmq_01" {
   type        = string
 }
 
+variable "bucket_artifact_storage" {
+  type = string
+}
+
 # variable "record" {
 #   description =  "Records Ip"
 #   type = list(string)
