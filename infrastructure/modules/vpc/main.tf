@@ -103,6 +103,11 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs_cloudwatch" {
   name              = "/aws/vpc/${local.name}-flow-logs"
   retention_in_days = 30
   tags              = merge(local.common_tags, { Name = "${local.name}-vpc-flow-logs" })
+  #  lifecycle {
+  #   prevent_destroy = true
+  #   create_before_destroy = true
+  #   ignore_changes = [name]  # optional, avoid drift error
+  # }
 }
 
 

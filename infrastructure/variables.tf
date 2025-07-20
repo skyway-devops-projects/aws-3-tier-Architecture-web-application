@@ -83,6 +83,12 @@ variable "bucket_artifact_storage" {
   type = string
 }
 
+
+
+variable "root_domain_name" {
+  type    = string
+}
+
 # variable "record" {
 #   description =  "Records Ip"
 #   type = list(string)

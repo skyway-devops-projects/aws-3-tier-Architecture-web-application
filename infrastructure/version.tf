@@ -7,7 +7,7 @@ terraform {
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.5"  # or latest
+      version = "~> 3.5" # or latest
     }
   }
   #   backend "s3" {

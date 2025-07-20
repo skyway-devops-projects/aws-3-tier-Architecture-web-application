@@ -27,7 +27,7 @@ resource "aws_lb_target_group" "web_tg" {
     enabled = true
     interval = 10
     timeout = 5
-    path = "/"
+    path = "/login"
     port = 8080
     protocol = "HTTP"
     healthy_threshold = 5
@@ -44,9 +44,12 @@ resource "aws_lb_listener" "web-alb-listener" {
   load_balancer_arn = aws_lb.web_alb.arn
   port = each.value.port
   protocol = each.value.protocol
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = var.certificate_arn
   default_action {
     type = "forward"
     target_group_arn = aws_lb_target_group.web_tg.arn
+  
   }
   depends_on = [ aws_lb.web_alb ]
 }

@@ -44,6 +44,7 @@ resource "aws_instance" "mariadb" {
   key_name               = var.key_name
   tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-mariadb" })
   user_data              = templatefile("${path.module}/scripts/mysql.sh", {})
+  depends_on             = [module.vpc]
 }
 
 resource "aws_instance" "memcached" {
@@ -54,6 +55,7 @@ resource "aws_instance" "memcached" {
   key_name               = var.key_name
   tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-memcached" })
   user_data              = templatefile("${path.module}/scripts/memcache.sh", {})
+  depends_on             = [module.vpc]
 }
 
 resource "aws_instance" "rabbitmq" {
@@ -64,7 +66,8 @@ resource "aws_instance" "rabbitmq" {
   key_name               = var.key_name
   user_data              = templatefile("${path.module}/scripts/rabbitmq.sh", {})
 
-  tags = merge(local.common_tags, { Name = "${local.name}-ec2-rabbitmq" })
+  tags       = merge(local.common_tags, { Name = "${local.name}-ec2-rabbitmq" })
+  depends_on = [module.vpc]
 }
 
 resource "aws_route53_zone" "private_zone" {
@@ -72,8 +75,9 @@ resource "aws_route53_zone" "private_zone" {
   vpc {
     vpc_id = module.vpc.vpc_id
   }
-  comment = "Private hosted zone for ${var.domain_name} backend servers"
-  tags    = merge(local.common_tags, { Name = "${local.name}-${var.domain_name}" })
+  comment    = "Private hosted zone for ${var.domain_name} backend servers"
+  tags       = merge(local.common_tags, { Name = "${local.name}-${var.domain_name}" })
+  depends_on = [module.vpc]
 }
 
 
@@ -111,12 +115,12 @@ module "private_hosted_zone_backend_rmq_01" {
 }
 
 resource "random_id" "bucket_suffix" {
-  byte_length = 4  # Generates 8 hex chars
+  byte_length = 4 # Generates 8 hex chars
 }
 
 resource "aws_s3_bucket" "bucket_artifact_storage" {
-  bucket = "${var.bucket_artifact_storage}-${random_id.bucket_suffix.hex}"  # Unique name
-    tags = merge(local.common_tags, { Name = "${local.name}-${var.bucket_artifact_storage}" })
+  bucket = "${var.bucket_artifact_storage}-${random_id.bucket_suffix.hex}" # Unique name
+  tags   = merge(local.common_tags, { Name = "${local.name}-${var.bucket_artifact_storage}" })
 }
 
 resource "aws_iam_role" "ec2_s3_role" {
@@ -173,23 +177,31 @@ resource "aws_instance" "bastion_host" {
   vpc_security_group_ids = [module.security.bastion_security_group_id]
   subnet_id              = element(module.vpc.public_subnet_ids, 0)
   key_name               = var.key_name
-   iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
   tags                   = merge(local.common_tags, { Name = "${local.name}-baston-host" })
+  provisioner "file" {
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = file("${path.module}/private_key/vprofile-dev.pem")
+      host        = self.public_ip
+    }
+    source      = "${path.module}/private_key/vprofile-dev.pem"
+    destination = "/home/ec2-user/vprofile-dev.pem"
+  }
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = file("${path.module}/private_key/vprofile-dev.pem")
+      host        = self.public_ip
+    }
+    inline = [
+      "chmod 400 /home/ec2-user/vprofile-dev.pem",
 
-
-
-  
-
-  #   provisioner "file" {
-  #   source = "../target/vprofile-v2.war"
-  #   destination = "/home/ec2-user/vprofile-v2.war"
-  #   connection {
-  #     type = "ssh"
-  #     user = "ec2-user"
-  #     private_key = file("${path.module}/private_key/vprofile-dev.pem")
-  #     host = self.public_ip
-  #   }
-  # }
+    ]
+  }
+  depends_on = [module.vpc]
 }
 
 
@@ -200,71 +212,98 @@ resource "aws_instance" "vprofile_app" {
   subnet_id              = element(module.vpc.private_subnet_ids, 1)
   key_name               = var.key_name
   iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
-  user_data              = templatefile("${path.module}/scripts/tomcat_ubuntu.sh", {})
+  user_data              = templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"})
   tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-vprofile-app" })
+  depends_on             = [module.vpc.nat_gateway_id]
 }
 
-resource "null_resource" "run_on_bastion_hots_ec2" {
-  
-    provisioner "file" {
-       connection {
-      type = "ssh"
-      user = "ec2-user"
-      private_key = file("${path.module}/private_key/vprofile-dev.pem")
-      host = aws_instance.bastion_host.public_ip
-    }
-    source = "${path.module}/private_key/vprofile-dev.pem"
-    destination = "tmp/vprofile-dev.pem"   
-  }
-provisioner "remote-exec" {
-   connection {
-      type = "ssh"
-      user = "ec2-user"
-      private_key = file("${path.module}/private_key/vprofile-dev.pem")
-      host = aws_instance.bastion_host.public_ip
-    }
-    inline = [
-      "chmod 400 /tmp/vprofile-dev.pem",
-      
-    ]
-}
-
-  triggers = {
-    always_run = timestamp()  # change this to force rerun
-  }
-  depends_on = [ aws_instance.bastion_host ]
-}
-
-resource "null_resource" "via_bastion_exec" {
-  provisioner "remote-exec" {
-    inline = [
-      "sudo systemctl stop tomcat10",
-      "cd /var/lib/tomcat10/webapps/",
-      "sudo rm -rf ROOT",
-      "sudo aws s3 cp s3://${aws_s3_bucket.bucket_artifact_storage.bucket}/artifact/vprofile-v2.war /tmp/vprofile-v2.war",
-      "sudo cp /tmp/vprofile-v2.war /var/lib/tomcat10/webapps/ROOT.war",
-      "sudo systemctl start tomcat10"
-    ]
-
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file("${path.module}/private_key/vprofile-dev.pem")
-      host        = aws_instance.vprofile_app.private_ip
-      bastion_host        = aws_instance.bastion_host.public_ip
-      bastion_user        = "ec2-user"
-      bastion_private_key = file("${path.module}/private_key/vprofile-dev.pem")
-    }
-  }
-   triggers = {
-    always_run = timestamp()  # change this to force rerun
-  }
-  depends_on = [ aws_instance.bastion_host,aws_instance.vprofile_app ]
-}
-
- resource "aws_s3_object" "upload_file" {
+resource "aws_s3_object" "upload_file" {
   bucket = aws_s3_bucket.bucket_artifact_storage.bucket
   key    = "artifact/vprofile-v2.war"
-  source = "../target/vprofile-v2.war"  # Path to local file
+  source = "../target/vprofile-v2.war" # Path to local file
 }
 
+resource "aws_route53_zone" "sky_way_solutions_zone" {
+  name = var.root_domain_name
+  
+}
+
+
+#Create an ACM Certificate
+# resource "aws_acm_certificate" "sky_way_solutions_certificate" {
+#   domain_name       = var.root_domain_name
+#   validation_method = "DNS"
+#   lifecycle {
+#     create_before_destroy = true
+#   }
+# }
+
+# resource "aws_route53_record" "sky_way_solutions_cert_dns" {
+#   allow_overwrite = true
+#   name =  tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_name
+#   records = [tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_value]
+#   type = tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_type
+#   zone_id = aws_route53_zone.sky_way_solutions_zone.zone_id
+#   ttl = 60
+# }
+
+# resource "aws_acm_certificate_validation" "sky_way_solutions_cert_validate" {
+#   certificate_arn = aws_acm_certificate.sky_way_solutions_certificate.arn
+#   validation_record_fqdns = [aws_route53_record.sky_way_solutions_cert_dns.fqdn]
+# }
+
+# resource "aws_route53_record" "route53_A_record" {
+#   zone_id = data.aws_route53_zone.selected_zone.zone_id
+#   name    = "ec2.${var.domain_name}"
+#   type    = "A"
+#   alias {
+#     name                   = aws_lb.aws-application_load_balancer.dns_name
+#     zone_id                = aws_lb.aws-application_load_balancer.zone_id
+#     evaluate_target_health = true
+#   }
+# }
+
+data "aws_acm_certificate" "existing_cert" {
+  domain   = var.root_domain_name
+  statuses = ["ISSUED"]
+  most_recent = true
+}
+
+data "aws_route53_zone" "selected_zone" {
+  name         =var.root_domain_name
+  private_zone = false
+}
+module "alb" {
+  source            = "./modules/alb-tg"
+  environment       = var.environment
+  project_name      = var.project_name
+  security_group_id = module.security.alb_security_group_id
+  public_subnet_ids = module.vpc.public_subnet_ids
+  vpc_id            = module.vpc.vpc_id
+  app_instace_id    = aws_instance.vprofile_app.id
+  certificate_arn = data.aws_acm_certificate.existing_cert.arn
+  depends_on        = [aws_instance.vprofile_app]
+  
+}
+
+resource "aws_route53_record" "route53_A_record" {
+  zone_id = data.aws_route53_zone.selected_zone.zone_id
+  name    = "vprofile.${var.root_domain_name}"
+  type    = "A"
+  alias {
+    name                   = module.alb.alb_dns_name
+    zone_id                =  module.alb.alb_zone_id
+    evaluate_target_health = true
+  }
+}
+
+# resource "aws_route53_record" "route53_A_record" {
+#   zone_id = aws_route53_zone.sky_way_solutions_zone.zone_id
+#   name    = "vprofile.${var.root_domain_name}"
+#   type    = "A"
+#   alias {
+#     name                   = module.alb.alb_dns_name
+#     zone_id                = module.alb.alb_zone_id
+#     evaluate_target_health = true
+#   }
+# }

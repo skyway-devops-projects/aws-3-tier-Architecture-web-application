@@ -26,11 +26,16 @@ variable "vpc_id" {
 variable "alb_listeners" {
   default = {
     http  = { port = 80,  protocol = "HTTP"  }
-    # https = { port = 443, protocol = "HTTPS" }
+    https = { port = 443, protocol = "HTTPS" }
   }
 }
 
 variable "app_instace_id" {
   type        = string
   description = "Instace Id app"
+}
+
+variable "certificate_arn" {
+  type = string
+  description = "Certificate arn"
 }
