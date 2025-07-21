@@ -242,9 +242,8 @@ module "alb" {
   security_group_id = module.security.alb_security_group_id
   public_subnet_ids = module.vpc.public_subnet_ids
   vpc_id            = module.vpc.vpc_id
-  app_instace_id    = aws_instance.vprofile_app.id
   certificate_arn = data.aws_acm_certificate.existing_cert.arn
-  depends_on        = [aws_instance.vprofile_app]
+  depends_on        = [module.vpc]
   
 }
 

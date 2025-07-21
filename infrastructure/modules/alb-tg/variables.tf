@@ -30,10 +30,10 @@ variable "vpc_id" {
 #   }
 # }
 
-variable "app_instace_id" {
-  type        = string
-  description = "Instace Id app"
-}
+# variable "app_instace_id" {
+#   type        = string
+#   description = "Instace Id app"
+# }
 
 variable "certificate_arn" {
   type = string
