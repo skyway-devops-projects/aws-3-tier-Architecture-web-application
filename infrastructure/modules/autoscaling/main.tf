@@ -11,6 +11,7 @@ resource "aws_launch_template" "web_lt" {
   image_id = var.image_id
   vpc_security_group_ids = [ var.security_group_id_web]
   instance_type = var.instance_type
+  key_name = var.key_name
   iam_instance_profile {
     arn = var.iam_instance_profile_arn
   }

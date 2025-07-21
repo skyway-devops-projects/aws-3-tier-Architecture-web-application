@@ -44,8 +44,3 @@ variable "target_group_arn" {
   type = string
   description = "Targetgroup arn"
 }
-
-variable "user_data" {
-    type = string
-  description = "userdata"
-}
