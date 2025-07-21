@@ -14,7 +14,7 @@ resource "aws_launch_template" "web_lt" {
   iam_instance_profile {
     arn = var.iam_instance_profile_arn
   }
-  user_data = var.user_data
+  user_data =   templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${var.bucket_name}"})
    tags = merge(local.common_tags, { Name = "${local.name}-web-lt" })
 }
 

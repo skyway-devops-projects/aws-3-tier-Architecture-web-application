@@ -30,9 +30,9 @@ variable "iam_instance_profile_arn" {
   description = "instance profile arn"
 }
 
-variable "user_data" {
+variable "bucket_name" {
   type = string
-  description = "user data"
+  description = "bucket name"
 }
 
 variable "web_subnet_ids" {
