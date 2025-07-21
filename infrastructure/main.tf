@@ -265,7 +265,11 @@ module "vprofile_app_ag" {
   image_id = "ami-013f478ef10960da1"
   instance_type = var.instance_type
   iam_instance_profile_arn = aws_iam_instance_profile.ec2_instance_profile.arn
-  bucket_name = aws_s3_bucket.bucket_artifact_storage.bucket
+  # user_data              = templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"})
+
+  user_data = base64encode(templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {
+  bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"
+}))
   security_group_id_web = module.security.app_security_group_id
   target_group_arn = module.alb.target_group_arn
   web_subnet_ids = module.vpc.private_subnet_ids

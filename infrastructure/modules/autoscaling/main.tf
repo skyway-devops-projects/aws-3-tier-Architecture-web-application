@@ -14,7 +14,7 @@ resource "aws_launch_template" "web_lt" {
   iam_instance_profile {
     arn = var.iam_instance_profile_arn
   }
-  user_data =   templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${var.bucket_name}"})
+  user_data =   var.user_data
    tags = merge(local.common_tags, { Name = "${local.name}-web-lt" })
 }
 
@@ -25,7 +25,7 @@ id = aws_launch_template.web_lt.id
 version = aws_launch_template.web_lt.latest_version
   }
   vpc_zone_identifier = var.web_subnet_ids
-  min_size = 2
+  min_size = 1
   desired_capacity = 1
   max_size = 2
   health_check_grace_period = 300

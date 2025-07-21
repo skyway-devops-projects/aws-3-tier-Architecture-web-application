@@ -30,10 +30,10 @@ variable "iam_instance_profile_arn" {
   description = "instance profile arn"
 }
 
-variable "bucket_name" {
-  type = string
-  description = "bucket name"
-}
+# variable "bucket_name" {
+#   type = string
+#   description = "bucket name"
+# }
 
 variable "web_subnet_ids" {
   type = list(string)
@@ -43,4 +43,9 @@ variable "web_subnet_ids" {
 variable "target_group_arn" {
   type = string
   description = "Targetgroup arn"
+}
+
+variable "user_data" {
+    type = string
+  description = "userdata"
 }
