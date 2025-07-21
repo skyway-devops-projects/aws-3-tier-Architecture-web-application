@@ -223,10 +223,7 @@ resource "aws_s3_object" "upload_file" {
   source = "../target/vprofile-v2.war" # Path to local file
 }
 
-resource "aws_route53_zone" "sky_way_solutions_zone" {
-  name = var.root_domain_name
-  
-}
+
 
 
 #Create an ACM Certificate

@@ -23,12 +23,12 @@ variable "vpc_id" {
   description = "VPC id"
 }
 
-variable "alb_listeners" {
-  default = {
-    http  = { port = 80,  protocol = "HTTP"  }
-    https = { port = 443, protocol = "HTTPS" }
-  }
-}
+# variable "alb_listeners" {
+#   default = {
+#     http  = { port = 80,  protocol = "HTTP"  }
+#     https = { port = 443, protocol = "HTTPS" }
+#   }
+# }
 
 variable "app_instace_id" {
   type        = string
