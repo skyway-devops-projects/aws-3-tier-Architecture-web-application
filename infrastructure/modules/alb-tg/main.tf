@@ -65,8 +65,8 @@ resource "aws_lb_listener" "web-alb-listener_http" {
   depends_on = [ aws_lb.web_alb ]
 }
 
-resource "aws_lb_target_group_attachment" "web_tg_instace_attachement" {
-  target_group_arn = aws_lb_target_group.web_tg.arn
-  target_id = var.app_instace_id
-  port = 8080
-}
+# resource "aws_lb_target_group_attachment" "web_tg_instace_attachement" {
+#   target_group_arn = aws_lb_target_group.web_tg.arn
+#   target_id = var.app_instace_id
+#   port = 8080
+# }

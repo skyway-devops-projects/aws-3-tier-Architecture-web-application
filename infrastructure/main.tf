@@ -205,60 +205,25 @@ resource "aws_instance" "bastion_host" {
 }
 
 
-resource "aws_instance" "vprofile_app" {
-  ami                    = "ami-013f478ef10960da1"
-  instance_type          = var.instance_type
-  vpc_security_group_ids = [module.security.app_security_group_id]
-  subnet_id              = element(module.vpc.private_subnet_ids, 1)
-  key_name               = var.key_name
-  iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
-  user_data              = templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"})
-  tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-vprofile-app" })
-  depends_on             = [module.vpc.nat_gateway_id]
-}
+
+
+# resource "aws_instance" "vprofile_app" {
+#   ami                    = "ami-013f478ef10960da1"
+#   instance_type          = var.instance_type
+#   vpc_security_group_ids = [module.security.app_security_group_id]
+#   subnet_id              = element(module.vpc.private_subnet_ids, 1)
+#   key_name               = var.key_name
+#   iam_instance_profile   = aws_iam_instance_profile.ec2_instance_profile.name
+#   user_data              = templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"})
+#   tags                   = merge(local.common_tags, { Name = "${local.name}-ec2-vprofile-app" })
+#   depends_on             = [module.vpc.nat_gateway_id]
+# }
 
 resource "aws_s3_object" "upload_file" {
   bucket = aws_s3_bucket.bucket_artifact_storage.bucket
   key    = "artifact/vprofile-v2.war"
   source = "../target/vprofile-v2.war" # Path to local file
 }
-
-
-
-
-#Create an ACM Certificate
-# resource "aws_acm_certificate" "sky_way_solutions_certificate" {
-#   domain_name       = var.root_domain_name
-#   validation_method = "DNS"
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
-
-# resource "aws_route53_record" "sky_way_solutions_cert_dns" {
-#   allow_overwrite = true
-#   name =  tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_name
-#   records = [tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_value]
-#   type = tolist(aws_acm_certificate.sky_way_solutions_certificate.domain_validation_options)[0].resource_record_type
-#   zone_id = aws_route53_zone.sky_way_solutions_zone.zone_id
-#   ttl = 60
-# }
-
-# resource "aws_acm_certificate_validation" "sky_way_solutions_cert_validate" {
-#   certificate_arn = aws_acm_certificate.sky_way_solutions_certificate.arn
-#   validation_record_fqdns = [aws_route53_record.sky_way_solutions_cert_dns.fqdn]
-# }
-
-# resource "aws_route53_record" "route53_A_record" {
-#   zone_id = data.aws_route53_zone.selected_zone.zone_id
-#   name    = "ec2.${var.domain_name}"
-#   type    = "A"
-#   alias {
-#     name                   = aws_lb.aws-application_load_balancer.dns_name
-#     zone_id                = aws_lb.aws-application_load_balancer.zone_id
-#     evaluate_target_health = true
-#   }
-# }
 
 data "aws_acm_certificate" "existing_cert" {
   domain   = var.root_domain_name
@@ -294,13 +259,16 @@ resource "aws_route53_record" "route53_A_record" {
   }
 }
 
-# resource "aws_route53_record" "route53_A_record" {
-#   zone_id = aws_route53_zone.sky_way_solutions_zone.zone_id
-#   name    = "vprofile.${var.root_domain_name}"
-#   type    = "A"
-#   alias {
-#     name                   = module.alb.alb_dns_name
-#     zone_id                = module.alb.alb_zone_id
-#     evaluate_target_health = true
-#   }
-# }
+module "vprofile_app_ag" {
+  source = "./modules/autoscaling"
+  environment       = var.environment
+  project_name      = var.project_name
+  image_id = "ami-013f478ef10960da1"
+  instance_type = var.instance_type
+  iam_instance_profile_arn = aws_iam_instance_profile.ec2_instance_profile.arn
+  user_data = templatefile("${path.module}/scripts/tomcat_ubuntu9.sh", {bucket_name = "${aws_s3_bucket.bucket_artifact_storage.bucket}"})
+  security_group_id_web = module.security.app_security_group_id
+  target_group_arn = module.alb.target_group_arn
+  web_subnet_ids = module.vpc.private_subnet_ids
+  depends_on = [ module.alb ]
+}
