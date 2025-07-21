@@ -273,5 +273,6 @@ module "vprofile_app_ag" {
   security_group_id_web = module.security.app_security_group_id
   target_group_arn = module.alb.target_group_arn
   web_subnet_ids = module.vpc.private_subnet_ids
+  key_name = var.key_name
   depends_on = [ module.alb ]
 }
